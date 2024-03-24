@@ -1,0 +1,141 @@
+---
+title: "Economics Project Working Doc"
+author: "benjamin"
+date: "12/12/2023"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r}
+#importing main data set
+library(readr)
+Econ <- read_csv("Econ.csv")
+Econ
+library(dplyr)
+
+#creating indicator interaction variables for main data set
+Econ <- Econ %>%
+   mutate(Math_Econ = UG_MATH * UG_ECON,
+         Math_LAC = UG_MATH * UG_LAC,
+         Econ_LAC = UG_ECON * UG_LAC,
+         Oth_LAC = UG_NOTMATH_ECON * UG_LAC)
+
+#importing data set with just prep variables
+library(readr)
+EconPrep <- read_csv("EconPrep.csv")
+EconPrep
+
+#creating indicator interaction variables for reduced prep set
+EconPrep <- EconPrep %>%
+   mutate(Math_Econ = UG_MATH * UG_ECON,
+         Math_LAC = UG_MATH * UG_LAC,
+         Econ_LAC = UG_ECON * UG_LAC,
+         Oth_LAC = UG_NOTMATH_ECON * UG_LAC)
+summary(EconPrep)
+EconPrep
+
+
+```
+
+```{r}
+# creating initial preparation index
+prepindex <- glm(AcadPlac ~ Stud_Fac_Ratio + UG_NOTMATH_ECON + UG_ECON + UG_MATH + Math_Econ + Math_LAC + Econ_LAC + Oth_LAC + UG_LAC + Intl + GradYR + Harvard, data = EconPrep)
+summary(prepindex)
+
+#adding this index into main data set
+Econ$Prep_Index1 <- predict(prepindex, newdata = Econ, type = "response")
+Econ 
+
+#stepwise regression to find best prep model
+step(prepindex, direction = "both", scope = formula(prepindex))
+
+#modeling the best prep model using stepwise results
+prepindex2 <- glm(AcadPlac ~ UG_MATH + Intl, data = EconPrep)
+summary(prepindex2)
+
+#adding stepwise model into main dataset 
+Econ$Prep_Index <- predict(prepindex2, newdata = Econ, type = "response")
+Econ 
+```
+
+```{r}
+#importing modified connection data set
+library(readr)
+EconConnect <- read_csv("EconConnect.csv")
+EconConnect
+
+#creating initial connection index
+connectindex <- glm(AcadPlac ~ GradYR + Harvard + UG_LAC + FacUGHarv_Stan + FacPhDHarv_Stan + FacultyUG_t7 + FacPhD_t7, data = EconConnect)
+summary(connectindex)
+
+#adding initial connection index into main data set
+Econ$ConnectIndex <- predict(connectindex, newdata = Econ, type = "response")
+Econ
+
+#stepwise regression to find best connection index
+step(connectindex, direction = "both", scope = formula(connectindex))
+
+#modeling best connection index from stepwise
+connectindex2 <- glm(AcadPlac ~ GradYR + FacultyUG_t7, data = EconConnect)
+summary(connectindex2)
+
+#adding stepwise model for connection index into main dataset
+Econ$ConnectIndex1 <- predict(connectindex2, newdata = Econ, type = "response")
+Econ
+```
+
+```{r}
+#only including complete cases to avoid misuse of NAs
+Econ <- Econ[complete.cases(Econ$repec_rank, Econ$plac_weight), ]
+
+# final test -- names to keep in line for MLR modeling
+# Prep_Index1 : full thing, largely insignificant 
+# Prep_Index : small, mostly significant
+# ConnectIndex: full thing, largely insignificant 
+# ConnectIndex1: small, mostly significant
+
+#repec_rank -- lower == better 
+#plac_weight -- higher == better
+
+#repec_rank MLR model with significant indexes
+model1 <- lm(repec_rank ~ Prep_Index + ConnectIndex1, data = Econ)
+summary(model1)
+
+#results
+# repec rank = 15.14 + 113.18(Prep_Index) - 60.9 * (ConnectIndex1) 
+# adj r^2 = .01629, p = .1431
+
+#repec_rank MLR model with insignificant indexes
+model2 <- lm(repec_rank ~ Prep_Index1 + ConnectIndex, data = Econ)
+summary(model2)
+
+#results
+# adj r^2 = .003285 p = .3071
+
+# repec rank = 23.37 + 90(Prep_Index1) - 52.95(ConnectIndex)
+
+#plac_weight MLR model with significant indexes
+
+model3 <- lm(plac_weight ~ Prep_Index + ConnectIndex1, data = Econ)
+summary(model3)
+
+# plac_weight = -.2964 + 1.2569(Prep_Index) + 1.8241(ConnectIndex1)
+# adj r^2 = .04283 p = .0293
+
+#plac_weight MLR model with insignificant indexes
+
+model4 <- lm(plac_weight ~ Prep_Index1 + ConnectIndex, data = Econ)
+summary(model4)
+
+#results
+# plac_weight = .001494 + 1.839947(Prep_Index1) + 0.726283(ConnectIndex)
+#adj r^2 = .01497 p = .1559
+
+#viewing overall 
+summary(Econ$Prep_Index)
+summary(Econ$ConnectIndex1)
+```
+
+
+
